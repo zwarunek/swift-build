@@ -785,10 +785,15 @@ public enum PropertyList: Sendable {
 
     /// Create a property list from the JSON-formatted data in `bytes`.
     public static func fromJSONData<D: DataProtocol>(_ bytes: D) throws -> PropertyListItem {
+        if let item = try bytes.withContiguousStorageIfAvailable({ try JSONPropertyListParser.parse($0) }) {
+            return item
+        }
+        return try Array(bytes).withUnsafeBufferPointer { try JSONPropertyListParser.parse($0) }
+    }
+
+    /// The JSONSerialization-based conversion `fromJSONData` used before; kept for parity tests.
+    static func fromJSONDataUsingJSONSerialization<D: DataProtocol>(_ bytes: D) throws -> PropertyListItem {
         do {
-            // Convert to a native representation.
-            //
-            // FIXME: Eventually, we want a way to do the loading and not need to copy / traverse all of the data multiple times.
             return convertToPropertyListItem(try JSONSerialization.jsonObject(with: Data(bytes)))
         } catch _ {
             throw PropertyListConversionError.invalidStream
