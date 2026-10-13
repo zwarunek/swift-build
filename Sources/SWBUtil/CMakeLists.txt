@@ -81,6 +81,7 @@ add_library(SWBUtil
   Process.swift
   ProcessInfo.swift
   Promise.swift
+  JSONPropertyListParser.swift
   PropertyList.swift
   Queue.swift
   RateLimiter.swift
