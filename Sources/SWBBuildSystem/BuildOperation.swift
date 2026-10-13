@@ -1722,7 +1722,15 @@ internal final class OperationSystemAdaptor: SWBLLBuild.BuildSystemDelegate, Act
         var pruneAfter: TimeInterval = 604800  // 7 days default
         var pruneInterval: TimeInterval = 86400 // 1 day default
         var libclangPath: Path?
-        for target in operation.buildDescription.targetTaskCounts.keys {
+        let targets = Array(operation.buildDescription.targetTaskCounts.keys)
+        // Computing settings dominates this function in large workspaces and the settings cache is thread-safe, so
+        // compute them in parallel first; the loop below then reads them from the cache in the original order.
+        let parameters = operation.request.parameters
+        let requestContext = operation.requestContext
+        DispatchQueue.concurrentPerform(iterations: targets.count) { index in
+            _ = requestContext.getCachedSettings(parameters, target: targets[index].target)
+        }
+        for target in targets {
             let targetSettings = operation.requestContext.getCachedSettings(operation.request.parameters, target: target.target)
             directories.insert(targetSettings.globalScope.evaluate(BuiltinMacros.CLANG_EXPLICIT_MODULES_OUTPUT_PATH))
             directories.insert(targetSettings.globalScope.evaluate(BuiltinMacros.SWIFT_EXPLICIT_MODULES_OUTPUT_PATH))
