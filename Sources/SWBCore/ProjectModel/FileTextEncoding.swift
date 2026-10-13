@@ -44,6 +44,11 @@ public extension FileTextEncoding {
             self.init(name)
             return
         }
+        #else
+        if let encoding = Self.portableEncodings.first(where: { $0.stringEncoding == stringEncoding }) {
+            self = encoding.textEncoding
+            return
+        }
         #endif
         return nil
     }
@@ -54,6 +59,15 @@ public extension FileTextEncoding {
         let cfencoding = CFStringConvertIANACharSetNameToEncoding(rawValue.asCFString)
         if cfencoding != kCFStringEncodingInvalidId {
             return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(cfencoding))
+        }
+        #else
+        // Without CoreFoundation, accept IANA names case-insensitively (like CFString does) and numeric NSStringEncoding values.
+        let name = rawValue.lowercased()
+        if let encoding = Self.portableEncodings.first(where: { $0.names.contains(name) }) {
+            return encoding.stringEncoding
+        }
+        if let value = UInt(rawValue), let encoding = Self.portableEncodings.first(where: { $0.stringEncoding.rawValue == value }) {
+            return encoding.stringEncoding
         }
         #endif
         return nil
@@ -82,9 +96,73 @@ public extension FileTextEncoding {
             // Always detect ASCII as UTF-8, because we want to prefer Unicode encodings
             return (convertedString, stringEncoding == .ascii ? FileTextEncoding.utf8 : discoveredEncoding)
         }
+        #else
+        if let detected = detectUnicodeEncoding(bytes) {
+            return detected
+        }
         #endif
 
         return nil
+    }
+
+    /// Detects a Unicode encoding without CoreFoundation, the way `NSString.stringEncoding(for:)` does for the
+    /// encodings `.strings` files use: a UTF-16 byte-order mark (preferred over UTF-32, as on Darwin, so
+    /// `FF FE 00 00` is UTF-16), a UTF-32 big-endian BOM, or valid UTF-8 (whose BOM is consumed). BOM-less
+    /// UTF-16 is not guessed.
+    internal static func detectUnicodeEncoding(_ bytes: [UInt8]) -> (string: String, originalEncoding: FileTextEncoding)? {
+        if bytes.starts(with: FileTextEncoding.utf16le.byteOrderMark) || bytes.starts(with: FileTextEncoding.utf16be.byteOrderMark) {
+            if let string = String(bytes, encoding: .utf16) { return (string, .utf16) }
+        }
+        if bytes.starts(with: FileTextEncoding.utf32be.byteOrderMark) {
+            if let string = String(bytes, encoding: .utf32) { return (string, .utf32) }
+        }
+        let utf8BOM = FileTextEncoding.utf8.byteOrderMark
+        let body = bytes.starts(with: utf8BOM) ? Array(bytes.dropFirst(utf8BOM.count)) : bytes
+        if let string = String(validatingUTF8Bytes: body) {
+            return (string, .utf8)
+        }
+        return nil
+    }
+}
+
+#if !canImport(Darwin)
+extension FileTextEncoding {
+    /// Encodings Foundation can convert on every platform, with the IANA names CFString accepts for them.
+    fileprivate struct PortableEncoding {
+        let textEncoding: FileTextEncoding
+        let names: Set<String>
+        let stringEncoding: String.Encoding
+    }
+
+    fileprivate static let portableEncodings: [PortableEncoding] = [
+        PortableEncoding(textEncoding: .utf8, names: ["utf-8", "utf8"], stringEncoding: .utf8),
+        PortableEncoding(textEncoding: .utf16, names: ["utf-16", "utf16", "unicode"], stringEncoding: .utf16),
+        PortableEncoding(textEncoding: .utf16be, names: ["utf-16be"], stringEncoding: .utf16BigEndian),
+        PortableEncoding(textEncoding: .utf16le, names: ["utf-16le"], stringEncoding: .utf16LittleEndian),
+        PortableEncoding(textEncoding: .utf32, names: ["utf-32", "utf32"], stringEncoding: .utf32),
+        PortableEncoding(textEncoding: .utf32be, names: ["utf-32be"], stringEncoding: .utf32BigEndian),
+        PortableEncoding(textEncoding: .utf32le, names: ["utf-32le"], stringEncoding: .utf32LittleEndian),
+        PortableEncoding(textEncoding: FileTextEncoding("us-ascii"), names: ["us-ascii", "ascii"], stringEncoding: .ascii),
+        PortableEncoding(textEncoding: FileTextEncoding("iso-8859-1"), names: ["iso-8859-1", "latin1"], stringEncoding: .isoLatin1),
+        PortableEncoding(textEncoding: FileTextEncoding("macintosh"), names: ["macintosh", "x-mac-roman"], stringEncoding: .macOSRoman),
+    ]
+}
+#endif
+
+fileprivate extension String {
+    /// Returns nil unless `bytes` is entirely valid UTF-8.
+    init?(validatingUTF8Bytes bytes: [UInt8]) {
+        var iterator = bytes.makeIterator()
+        var decoder = Unicode.UTF8()
+        var scalars = String.UnicodeScalarView()
+        decode: while true {
+            switch decoder.decode(&iterator) {
+            case .scalarValue(let scalar): scalars.append(scalar)
+            case .emptyInput: break decode
+            case .error: return nil
+            }
+        }
+        self = String(scalars)
     }
 }
 

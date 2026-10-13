@@ -26,7 +26,7 @@ import SWBTestSupport
         #expect(FileTextEncoding("utf8") != FileTextEncoding.utf8)
     }
 
-    @Test(.requireHostOS(.macOS)) // requires CoreFoundation which is macOS-only
+    @Test
     func encoding() throws {
         #expect(FileTextEncoding.utf8.stringEncoding == String.Encoding.utf8)
         #expect(FileTextEncoding.utf16.stringEncoding == String.Encoding.utf16)
@@ -38,7 +38,7 @@ import SWBTestSupport
         #expect(FileTextEncoding("utf-64").stringEncoding == nil)
     }
 
-    @Test(.requireHostOS(.macOS)) // crashes on Linux
+    @Test
     func decoding() throws {
         #expect(FileTextEncoding(stringEncoding: String.Encoding.utf8) == FileTextEncoding.utf8)
         #expect(FileTextEncoding(stringEncoding: String.Encoding.utf16) == FileTextEncoding.utf16)
