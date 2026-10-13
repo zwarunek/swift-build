@@ -19,7 +19,7 @@ import SWBTaskExecution
 
 import SWBCore
 
-@Suite(.requireHostOS(.macOS)) // many tests here crash or fail on Linux
+@Suite
 fileprivate struct CopyStringsFileTaskTests {
     static let bom_utf8 = [UInt8]([0xEF, 0xBB, 0xBF])
     static let bom_utf16be = [UInt8]([0xFE, 0xFF])
@@ -27,29 +27,8 @@ fileprivate struct CopyStringsFileTaskTests {
     static let bom_utf32be = [UInt8]([0x00, 0x00, 0xFE, 0xFF])
     static let bom_utf32le = [UInt8]([0xFF, 0xFE, 0x00, 0x00])
 
-    #if canImport(Darwin)
-    static let bom_utf16_host: [UInt8] = {
-        switch __CFByteOrder(UInt32(CFByteOrderGetCurrent())) {
-        case CFByteOrderBigEndian:
-            return bom_utf16be
-        case CFByteOrderLittleEndian:
-            return bom_utf16le
-        default:
-            return []
-        }
-    }()
-
-    static let bom_utf32_host: [UInt8] = {
-        switch __CFByteOrder(UInt32(CFByteOrderGetCurrent())) {
-        case CFByteOrderBigEndian:
-            return bom_utf32be
-        case CFByteOrderLittleEndian:
-            return bom_utf32le
-        default:
-            return []
-        }
-    }()
-    #endif
+    static let bom_utf16_host: [UInt8] = 1.littleEndian == 1 ? bom_utf16le : bom_utf16be
+    static let bom_utf32_host: [UInt8] = 1.littleEndian == 1 ? bom_utf32le : bom_utf32be
 
     @Test
     func diagnostics() async {
@@ -410,7 +389,6 @@ fileprivate struct CopyStringsFileTaskTests {
         }
     }
 
-    #if canImport(Darwin)
     @Test func UTF16ToUTF16() async throws {
         let action = CopyStringsFileTaskAction()
         let task = Task(forTarget: nil, ruleInfo: [], commandLine: ["builtin-copyStrings", "--validate", "--inputencoding", "utf-16", "--outputencoding", "UTF-16", "--outdir", "/tmp/outputs", "--", "/tmp/inputs/input.strings"], workingDirectory: Path("/tmp"), outputs: [], action: action, execDescription: "Copy Localization Strings File")
@@ -454,7 +432,6 @@ fileprivate struct CopyStringsFileTaskTests {
             #expect(outputContents == inputByteString)
         }
     }
-    #endif
 
     @Test
     func UTF16BEToUTF16() async throws {
@@ -548,8 +525,8 @@ fileprivate struct CopyStringsFileTaskTests {
         }
     }
 
-#if canImport(Darwin)
-    func testUTF32ToUTF16() async throws {
+    @Test
+    func UTF32ToUTF16() async throws {
         let action = CopyStringsFileTaskAction()
         let task = Task(forTarget: nil, ruleInfo: [], commandLine: ["builtin-copyStrings", "--validate", "--inputencoding", "utf-32", "--outputencoding", "UTF-16", "--outdir", "/tmp/outputs", "--", "/tmp/inputs/input.strings"], workingDirectory: Path("/tmp"), outputs: [], action: action, execDescription: "Copy Localization Strings File")
 
@@ -592,7 +569,6 @@ fileprivate struct CopyStringsFileTaskTests {
             #expect(try executionDelegate.fs.read(Path("/tmp/outputs/input.strings")) == byteString)
         }
     }
-#endif
 
     @Test
     func UTF32BEToUTF16() async throws {
