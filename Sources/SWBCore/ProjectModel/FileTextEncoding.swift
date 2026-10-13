@@ -105,33 +105,21 @@ public extension FileTextEncoding {
         return nil
     }
 
-    /// Detects a Unicode encoding without CoreFoundation: a byte-order mark first, then valid UTF-8,
-    /// then BOM-less UTF-16 recognized by NUL bytes in every other position (ASCII-range text).
-    ///
-    /// Mirrors what `NSString.stringEncoding(for:)` reports on Darwin for the encodings Xcode accepts in
-    /// `.strings` files: UTF-8 (with any BOM kept in the string), and UTF-16/UTF-32 with a BOM reported
-    /// as the BOM-carrying `utf-16`/`utf-32` encodings.
+    /// Detects a Unicode encoding without CoreFoundation, the way `NSString.stringEncoding(for:)` does for the
+    /// encodings `.strings` files use: a UTF-16 byte-order mark (preferred over UTF-32, as on Darwin, so
+    /// `FF FE 00 00` is UTF-16), a UTF-32 big-endian BOM, or valid UTF-8 (whose BOM is consumed). BOM-less
+    /// UTF-16 is not guessed.
     internal static func detectUnicodeEncoding(_ bytes: [UInt8]) -> (string: String, originalEncoding: FileTextEncoding)? {
-        // UTF-32 BOMs must be checked before UTF-16, since FF FE 00 00 starts with the UTF-16LE BOM.
-        if bytes.starts(with: FileTextEncoding.utf32le.byteOrderMark) || bytes.starts(with: FileTextEncoding.utf32be.byteOrderMark) {
-            if let string = String(bytes, encoding: .utf32) { return (string, .utf32) }
-        }
         if bytes.starts(with: FileTextEncoding.utf16le.byteOrderMark) || bytes.starts(with: FileTextEncoding.utf16be.byteOrderMark) {
             if let string = String(bytes, encoding: .utf16) { return (string, .utf16) }
         }
-        if let string = String(validatingUTF8Bytes: bytes) {
-            return (string, .utf8)
+        if bytes.starts(with: FileTextEncoding.utf32be.byteOrderMark) {
+            if let string = String(bytes, encoding: .utf32) { return (string, .utf32) }
         }
-        if bytes.count >= 2 && bytes.count % 2 == 0 {
-            let evens = stride(from: 0, to: bytes.count, by: 2).map { bytes[$0] }
-            let odds = stride(from: 1, to: bytes.count, by: 2).map { bytes[$0] }
-            let nulInOdd = odds.contains(0), nulInEven = evens.contains(0)
-            if nulInOdd && !nulInEven, let string = String(bytes, encoding: .utf16le) {
-                return (string, .utf16le)
-            }
-            if nulInEven && !nulInOdd, let string = String(bytes, encoding: .utf16be) {
-                return (string, .utf16be)
-            }
+        let utf8BOM = FileTextEncoding.utf8.byteOrderMark
+        let body = bytes.starts(with: utf8BOM) ? Array(bytes.dropFirst(utf8BOM.count)) : bytes
+        if let string = String(validatingUTF8Bytes: body) {
+            return (string, .utf8)
         }
         return nil
     }
