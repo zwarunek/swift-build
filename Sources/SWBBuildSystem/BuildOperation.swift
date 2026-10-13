@@ -544,7 +544,14 @@ package final class BuildOperation: BuildSystemOperation {
             return .commandNamePriority
         }()
 
-        let laneWidth = request.schedulerLaneWidthOverride ?? UserDefaults.schedulerLaneWidth ?? 0
+        // 0 lets llbuild use the hardware concurrency, which on Linux counts every online processor of the host,
+        // even in a container that may only use a few of them.
+        #if os(Linux)
+        let defaultLaneWidth = UInt32(ProcessInfo.processInfo.usableProcessorCount)
+        #else
+        let defaultLaneWidth: UInt32 = 0
+        #endif
+        let laneWidth = request.schedulerLaneWidthOverride ?? UserDefaults.schedulerLaneWidth ?? defaultLaneWidth
 
         // Create the low-level build system.
         let adaptor: OperationSystemAdaptor

@@ -848,7 +848,7 @@ extension CoreClientTargetDiagnosticProducingDelegate {
 }
 
 // Limit the number of concurrently-executing external processes on the host to the number of cores.
-private let externalToolExecutionQueue = AsyncOperationQueue(concurrentTasks: ProcessInfo.processInfo.activeProcessorCount)
+private let externalToolExecutionQueue = AsyncOperationQueue(concurrentTasks: ProcessInfo.processInfo.usableProcessorCount)
 
 extension CoreClientDelegate {
     package func executeExternalTool(commandLine: [String], workingDirectory: Path? = nil, environment: [String: String] = [:]) async throws -> Processes.ExecutionResult {

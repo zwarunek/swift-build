@@ -675,7 +675,7 @@ public struct SwiftMacroImplementationDescriptor: Hashable, Comparable, Sendable
 }
 
 public final class SwiftCompilerSpec : CompilerSpec, SpecIdentifierType, SwiftDiscoveredCommandLineToolSpecInfo, @unchecked Sendable {
-    @_spi(Testing) public static let parallelismLevel = ProcessInfo.processInfo.activeProcessorCount
+    @_spi(Testing) public static let parallelismLevel = ProcessInfo.processInfo.usableProcessorCount
 
     public static let identifier = "com.apple.xcode.tools.swift.compiler"
 
